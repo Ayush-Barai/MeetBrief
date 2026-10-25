@@ -19,8 +19,9 @@ import type { Meeting, ProcessingStage } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AudioPlayer } from "@/components/meetings/audio-player";
+import { LocalDate } from "@/components/ui/local-datetime";
 import { apiFetch } from "@/lib/client-api";
-import { cn, formatBytes, formatDuration, formatDate, languageLabel } from "@/lib/utils";
+import { cn, formatBytes, formatDuration, languageLabel } from "@/lib/utils";
 
 const stageInfo: Array<{ id: ProcessingStage; label: string; detail: string }> = [
   { id: "transcribing", label: "Transcribing", detail: "Timestamps and speaker labels" },
@@ -141,18 +142,21 @@ export function MeetingCapturePanel({ meeting }: { meeting: Meeting }) {
             </div>
             <div>
               <dt className="text-ink-faint">Created</dt>
-              <dd className="mt-1 font-medium">{formatDate(meeting.createdAt)}</dd>
+              <dd className="mt-1 font-medium">
+                <LocalDate value={meeting.createdAt} />
+              </dd>
             </div>
           </dl>
-          {meeting.participantNames.length ? (
-            <div className="mt-4 flex items-start gap-2 border-t border-line pt-4">
-              <UsersRound className="mt-0.5 size-3.5 shrink-0 text-ink-faint" aria-hidden="true" />
-              <div>
-                <p className="text-[0.65rem] uppercase tracking-wider text-ink-faint">Participants</p>
-                <p className="mt-1 text-xs text-ink-soft">{meeting.participantNames.join(", ")}</p>
-              </div>
+          <div className="mt-4 flex items-start gap-2 border-t border-line pt-4">
+            <UsersRound className="mt-0.5 size-3.5 shrink-0 text-ink-faint" aria-hidden="true" />
+            <div>
+              <p className="text-[0.65rem] uppercase tracking-wider text-ink-faint">Speakers</p>
+              <p className="mt-1 text-xs text-ink-soft">
+                Detected automatically after transcription as Person 1, Person 2…
+                You can rename them in the report.
+              </p>
             </div>
-          ) : null}
+          </div>
         </div>
 
         {error ? (
@@ -264,10 +268,11 @@ export function MeetingCapturePanel({ meeting }: { meeting: Meeting }) {
           <h3 className="text-xs font-semibold">What happens next</h3>
           <ul className="mt-3 space-y-3">
             {[
-              "A timestamped transcript is created; speakers get anonymous labels when diarization is available.",
+              "A timestamped transcript is created; distinct speakers become Person 1, Person 2… when diarization is available.",
+              "Gemma suggests real names only when a speaker identifies themselves in the transcript.",
               "Gemma writes a structured report with evidence links back to the transcript.",
               "Owners and deadlines that are not explicit in the recording are removed during validation.",
-              "You can edit the report, map speakers, update tasks, and generate an ElevenLabs recap.",
+              "You can rename speakers, edit the report, update tasks, and generate an ElevenLabs recap.",
             ].map((line) => (
               <li key={line} className="flex gap-2 text-[0.7rem] leading-relaxed text-ink-soft">
                 <Check className="mt-0.5 size-3 shrink-0 text-accent" aria-hidden="true" />

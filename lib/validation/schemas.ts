@@ -13,11 +13,6 @@ const shortList = z.array(z.string().trim().min(1).max(500)).max(24).default([])
 
 export const createMeetingSchema = z.object({
   title: z.string().trim().min(2, "Add a meeting title").max(160),
-  participantNames: z
-    .array(z.string().trim().max(80))
-    .max(30)
-    .default([])
-    .transform((names) => names.filter(Boolean)),
   language: z.enum(languageValues).default("en"),
   durationSeconds: z
     .number()
@@ -53,6 +48,17 @@ export const aiReportSchema = z.object({
       }),
     )
     .max(20)
+    .default([]),
+  speakerSuggestions: z
+    .array(
+      z.object({
+        speakerId: cleanString(120),
+        suggestedName: cleanString(80),
+        confidence: z.enum(["stated", "contextual"]).catch("contextual"),
+        evidence: z.array(evidenceSchema).max(6).default([]),
+      }),
+    )
+    .max(30)
     .default([]),
   speakerContributions: z
     .array(

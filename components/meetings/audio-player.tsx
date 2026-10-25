@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Download, Loader2, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { cn, formatTimestamp } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ export function AudioPlayer({
 }: {
   src: string;
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   downloadName?: string;
   className?: string;
 }) {

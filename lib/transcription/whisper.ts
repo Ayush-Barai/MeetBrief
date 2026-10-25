@@ -108,7 +108,7 @@ export function createWhisperAdapter(): TranscriptionAdapter {
             startSeconds: Number(start.toFixed(3)),
             endSeconds: Number(end.toFixed(3)),
             speakerId: "speaker-1",
-            speakerLabel: "Speaker 1",
+            speakerLabel: "Person 1",
             text: (segment.text ?? "").trim(),
             confidence:
               confidence === null ? null : Number(confidence.toFixed(3)),

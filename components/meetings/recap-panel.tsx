@@ -15,6 +15,7 @@ import type { MeetingDetail } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AudioPlayer } from "@/components/meetings/audio-player";
+import { LocalDate } from "@/components/ui/local-datetime";
 import { apiFetch } from "@/lib/client-api";
 
 export function RecapPanel({
@@ -169,7 +170,17 @@ export function RecapPanel({
           className="mt-5"
           src={audioSrc}
           title={`${meeting.title} — audio recap`}
-          subtitle={`ElevenLabs${recap.generatedAt ? ` · ${new Date(recap.generatedAt).toLocaleDateString()}` : ""}`}
+          subtitle={
+            <>
+              ElevenLabs
+              {recap.generatedAt ? (
+                <>
+                  {" · "}
+                  <LocalDate value={recap.generatedAt} />
+                </>
+              ) : null}
+            </>
+          }
           downloadName={`${meeting.title.replace(/[^a-zA-Z0-9._-]+/g, "-")}-recap.mp3`}
         />
       ) : (

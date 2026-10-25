@@ -79,7 +79,6 @@ export async function PATCH(
     const { id } = await context.params;
     const body = (await request.json().catch(() => ({}))) as {
       title?: unknown;
-      participantNames?: unknown;
     };
     const existing = await getMeetingDoc(userId, id);
     if (!existing) {
@@ -98,13 +97,6 @@ export async function PATCH(
         );
       }
       update.title = title;
-    }
-    if (Array.isArray(body.participantNames)) {
-      update.participantNames = body.participantNames
-        .filter((value): value is string => typeof value === "string")
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .slice(0, 30);
     }
     if (Object.keys(update).length === 0) {
       return NextResponse.json(

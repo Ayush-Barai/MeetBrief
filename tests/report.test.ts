@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { reconcileReport, buildReportMarkdown } from "@/lib/ai/report";
+import {
+  renameSpeakerInActionItem,
+  renameSpeakerInReport,
+} from "@/lib/speakers";
 import type { AiReport } from "@/lib/validation/schemas";
 import type { MeetingReport, TranscriptSegment } from "@/types";
 
@@ -56,6 +60,7 @@ const validAiReport: AiReport = {
       ],
     },
   ],
+  speakerSuggestions: [],
   speakerContributions: [
     {
       speakerId: "speaker-1",
@@ -151,6 +156,105 @@ describe("reconcileReport", () => {
     const result = reconcileReport(input, segments);
     expect(result.report.speakerContributions[0].speakerId).toBe("speaker-2");
   });
+
+  it("keeps a suggested speaker name only when that speaker says it themselves", () => {
+    const selfIntroSegments: TranscriptSegment[] = [
+      {
+        ...segments[0],
+        id: "s1",
+        speakerId: "speaker-1",
+        speakerLabel: "Person 1",
+        text: "I'm Ayush. I'll send the launch copy to legal by Friday.",
+      },
+      {
+        ...segments[1],
+        id: "s2",
+        speakerId: "speaker-2",
+        speakerLabel: "Person 2",
+        text: "Ayush is right, we agreed to keep the September 30 date.",
+      },
+    ];
+    const input: AiReport = {
+      ...validAiReport,
+      speakerSuggestions: [
+        {
+          speakerId: "speaker-1",
+          suggestedName: "Ayush",
+          confidence: "stated",
+          evidence: [],
+        },
+        {
+          speakerId: "speaker-2",
+          suggestedName: "Ayush",
+          confidence: "contextual",
+          evidence: [],
+        },
+      ],
+    };
+    const result = reconcileReport(input, selfIntroSegments);
+    expect(result.report.speakerSuggestions).toEqual([
+      { speakerId: "speaker-1", suggestedName: "Ayush", confidence: "stated" },
+    ]);
+  });
+
+  it("rejects a possessive mention that only looks like a self-introduction", () => {
+    const possessiveSegments: TranscriptSegment[] = [
+      {
+        ...segments[0],
+        speakerId: "speaker-1",
+        speakerLabel: "Person 1",
+        text: "I'm Maya's colleague. I'll send the launch copy to legal.",
+      },
+    ];
+    const input: AiReport = {
+      ...validAiReport,
+      speakerSuggestions: [
+        {
+          speakerId: "speaker-1",
+          suggestedName: "Maya",
+          confidence: "stated",
+          evidence: [],
+        },
+      ],
+    };
+    const result = reconcileReport(input, possessiveSegments);
+    expect(result.report.speakerSuggestions).toEqual([]);
+  });
+
+  it("renames speakers across the report without rewriting evidence quotes", () => {
+    const reconciled = reconcileReport(validAiReport, segments);
+    const report: MeetingReport = {
+      ...reconciled.report,
+      speakerSuggestions: [
+        { speakerId: "speaker-1", suggestedName: "Sarah", confidence: "stated" },
+      ],
+      version: 1,
+      generatedAt: new Date("2026-01-01").toISOString(),
+      editedAt: null,
+      model: "gemma3:27b",
+    };
+    const renamed = renameSpeakerInReport(report, {
+      speakerId: "speaker-1",
+      aliases: ["Speaker 1", "Sarah"],
+      name: "Ayush",
+    });
+    expect(renamed.speakerContributions[0].speakerName).toBe("Ayush");
+    expect(renamed.speakerSuggestions[0].suggestedName).toBeNull();
+    expect(renamed.decisions[0].evidence[0].quote).toBe(
+      "We agreed to keep the September 30 launch date.",
+    );
+  });
+
+  it("renames matching action owners", () => {
+    const item = {
+      task: "Send the launch copy to legal.",
+      owner: "Speaker 1",
+      deadline: "Friday",
+    };
+    const renamed = renameSpeakerInActionItem(item, ["Speaker 1"], "Ayush");
+    expect(renamed.owner).toBe("Ayush");
+    expect(renamed.task).toBe("Send the launch copy to legal.");
+  });
 });
 
 describe("buildReportMarkdown", () => {
@@ -166,7 +270,7 @@ describe("buildReportMarkdown", () => {
     const markdown = buildReportMarkdown({
       title: "Launch meeting",
       createdAt: "2026-01-01T00:00:00.000Z",
-      participants: ["Sarah"],
+      speakers: ["Person 1"],
       language: "en",
       report,
       actionItems: [],

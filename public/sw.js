@@ -1,5 +1,5 @@
 /* MeetBrief AI service worker — safe static caching only. */
-const VERSION = "meetbrief-v1";
+const VERSION = "meetbrief-v2";
 const STATIC_CACHE = `${VERSION}-static`;
 const OFFLINE_CACHE = `${VERSION}-offline`;
 
@@ -36,6 +36,15 @@ self.addEventListener("activate", (event) => {
 
 const STATIC_DESTINATIONS = new Set(["style", "script", "font", "image"]);
 
+function isCacheableAsset(request, url) {
+  if (!STATIC_DESTINATIONS.has(request.destination)) {
+    return url.pathname.startsWith("/icons/");
+  }
+  // Next.js build assets are content-hashed and safe to cache. Everything else
+  // (HTML, API data, share pages) stays network-only.
+  return url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/");
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -65,18 +74,23 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (STATIC_DESTINATIONS.has(request.destination) || url.pathname.startsWith("/icons/")) {
+  if (isCacheableAsset(request, url)) {
+    // Network-first: always try the network so deploys are picked up, then fall
+    // back to the cached copy when offline.
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
+      fetch(request)
+        .then((response) => {
           if (response.ok) {
             const copy = response.clone();
             caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
           }
           return response;
-        });
-      }),
+        })
+        .catch(() =>
+          caches
+            .match(request)
+            .then((cached) => cached ?? Response.error()),
+        ),
     );
   }
 });

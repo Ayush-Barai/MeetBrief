@@ -45,7 +45,7 @@ export default function DemoPage() {
           {DEMO_MEETING.title}
         </h1>
         <p className="mt-2 text-xs text-ink-faint">
-          September 18, 2026 · 41 minutes · 4 participants
+          September 18, 2026 · 41 minutes · 4 speakers
         </p>
       </header>
 

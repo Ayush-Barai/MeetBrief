@@ -17,7 +17,9 @@ import type { MeetingDetail, MeetingReport } from "@/types";
 import { Badge, DecisionBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
+import { LocalDateTime } from "@/components/ui/local-datetime";
 import { EvidenceList } from "@/components/meetings/evidence-list";
+import { SpeakerPanel } from "@/components/meetings/speaker-panel";
 import { apiFetch } from "@/lib/client-api";
 import { cn, formatTimestamp } from "@/lib/utils";
 
@@ -171,10 +173,18 @@ export function OverviewPanel({
           )}
           {!editing && (report.editedAt || report.version > 1) ? (
             <p className="mt-5 border-t border-line pt-3 text-[0.65rem] text-ink-faint">
-              Edited {report.editedAt ? new Date(report.editedAt).toLocaleString() : "after generation"} · version {report.version}
+              Edited{" "}
+              {report.editedAt ? (
+                <LocalDateTime value={report.editedAt} />
+              ) : (
+                "after generation"
+              )}{" "}
+              · version {report.version}
             </p>
           ) : null}
         </section>
+
+        <SpeakerPanel meeting={meeting} readOnly={readOnly} />
 
         <section className="rounded-2xl border border-line bg-white p-5 shadow-soft md:p-6">
           <div className="flex items-center gap-2">
@@ -320,7 +330,9 @@ export function OverviewPanel({
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-ink-faint">Generated</dt>
-              <dd className="text-right text-ink-soft">{new Date(report.generatedAt).toLocaleString()}</dd>
+              <dd className="text-right text-ink-soft">
+                <LocalDateTime value={report.generatedAt} />
+              </dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-ink-faint">Transcript</dt>

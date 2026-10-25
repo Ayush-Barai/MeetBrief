@@ -7,9 +7,16 @@ import {
   getMeetingDoc,
   reportToDto,
   toObjectId,
+  type ActionDoc,
   type ReportDoc,
   type SegmentDoc,
 } from "@/lib/meetings/repository";
+import {
+  renameSpeakerInActionItem,
+  renameSpeakerInReport,
+  replaceSpeakerName,
+  type SpeakerRename,
+} from "@/lib/speakers";
 import { getDb, COLLECTIONS } from "@/lib/mongodb/client";
 
 export const runtime = "nodejs";
@@ -36,30 +43,136 @@ export async function PATCH(
     const now = new Date();
 
     if (input.speakerMap && Object.keys(input.speakerMap).length) {
-      const entries = Object.entries(input.speakerMap).slice(0, 60);
-      for (const [speakerId, label] of entries) {
+      const entries = Object.entries(input.speakerMap)
+        .map(([speakerId, label]) => [speakerId, label.trim()] as const)
+        .filter(([, label]) => label.length > 0)
+        .slice(0, 60);
+
+      const [segmentDocs, reportDoc, actionDocs] = await Promise.all([
+        db
+          .collection<SegmentDoc>(COLLECTIONS.transcripts)
+          .find({ meetingId })
+          .toArray(),
+        db.collection<ReportDoc>(COLLECTIONS.reports).findOne({ meetingId }),
+        db.collection<ActionDoc>(COLLECTIONS.actions).find({ meetingId }).toArray(),
+      ]);
+
+      const currentLabels = new Map<string, string>();
+      for (const segment of segmentDocs) {
+        if (!currentLabels.has(segment.speakerId)) {
+          currentLabels.set(segment.speakerId, segment.speakerLabel);
+        }
+      }
+
+      const report = reportDoc ? reportToDto(reportDoc) : null;
+      let renamedReport = report;
+      const renames: SpeakerRename[] = [];
+
+      for (const [speakerId, name] of entries) {
+        const aliases = new Set<string>();
+        const currentLabel = currentLabels.get(speakerId);
+        if (currentLabel && currentLabel !== name) aliases.add(currentLabel);
+
+        const contribution = report?.speakerContributions.find(
+          (item) => item.speakerId === speakerId,
+        );
+        if (contribution?.speakerName && contribution.speakerName !== name) {
+          aliases.add(contribution.speakerName);
+        }
+
+        const suggestion = report?.speakerSuggestions.find(
+          (item) => item.speakerId === speakerId,
+        );
+        if (suggestion?.suggestedName && suggestion.suggestedName !== name) {
+          aliases.add(suggestion.suggestedName);
+        }
+
+        if (!aliases.size) continue;
+        const rename: SpeakerRename = {
+          speakerId,
+          aliases: Array.from(aliases),
+          name,
+        };
+        renames.push(rename);
+        if (renamedReport) {
+          renamedReport = renameSpeakerInReport(renamedReport, rename);
+        }
+
         await db.collection<SegmentDoc>(COLLECTIONS.transcripts).updateMany(
           { meetingId, speakerId },
-          { $set: { speakerLabel: label } },
+          { $set: { speakerLabel: name } },
         );
       }
-      // Keep report speaker names aligned with the transcript mapping.
-      const report = await db
-        .collection<ReportDoc>(COLLECTIONS.reports)
-        .findOne({ meetingId });
-      if (report) {
-        const updated = report.speakerContributions.map((contribution) => ({
-          ...contribution,
-          speakerName:
-            input.speakerMap?.[contribution.speakerId] ?? contribution.speakerName,
-        }));
+
+      if (renamedReport && reportDoc) {
         await db.collection<ReportDoc>(COLLECTIONS.reports).updateOne(
           { meetingId },
           {
             $set: {
-              speakerContributions: updated,
+              executiveSummary: renamedReport.executiveSummary,
+              discussionPoints: renamedReport.discussionPoints,
+              speakerSuggestions: renamedReport.speakerSuggestions,
+              speakerContributions: renamedReport.speakerContributions,
+              decisions: renamedReport.decisions,
+              openQuestions: renamedReport.openQuestions,
+              nextMeeting: renamedReport.nextMeeting,
+              validationWarnings: renamedReport.validationWarnings,
               editedAt: now,
-              version: report.version + 1,
+              version: reportDoc.version + 1,
+            },
+          },
+        );
+      }
+
+      if (renames.length && actionDocs.length) {
+        const bulk = actionDocs
+          .map((action) => {
+            const renamed = renames.reduce(
+              (item, rename) =>
+                renameSpeakerInActionItem(item, rename.aliases, rename.name),
+              { task: action.task, owner: action.owner },
+            );
+            if (
+              renamed.task === action.task &&
+              renamed.owner === action.owner
+            ) {
+              return null;
+            }
+            return {
+              updateOne: {
+                filter: { _id: action._id, meetingId },
+                update: { $set: { ...renamed, updatedAt: now } },
+              },
+            };
+          })
+          .filter(
+            (operation): operation is NonNullable<typeof operation> =>
+              Boolean(operation),
+          );
+        if (bulk.length) {
+          await db.collection(COLLECTIONS.actions).bulkWrite(bulk);
+        }
+      }
+
+      // Keep the written recap script consistent and mark old audio as stale.
+      let recapScript = meeting.recap?.script ?? null;
+      if (recapScript) {
+        for (const rename of renames) {
+          for (const alias of rename.aliases) {
+            recapScript = replaceSpeakerName(recapScript, alias, rename.name);
+          }
+        }
+      }
+      if (recapScript && recapScript !== meeting.recap?.script) {
+        await db.collection(COLLECTIONS.meetings).updateOne(
+          { _id: meetingId },
+          {
+            $set: {
+              "recap.script": recapScript,
+              ...(meeting.recap?.status === "ready" ||
+              meeting.recap?.status === "generating"
+                ? { "recap.status": "stale" }
+                : {}),
             },
           },
         );

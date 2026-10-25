@@ -3,15 +3,16 @@ import { actionItemSchema, createMeetingSchema } from "@/lib/validation/schemas"
 import { formatTimestamp } from "@/lib/utils";
 
 describe("createMeetingSchema", () => {
-  it("normalizes a valid meeting", () => {
+  it("normalizes a valid meeting without requiring participant names", () => {
     const result = createMeetingSchema.parse({
       title: "  Q3 launch  ",
-      participantNames: [" Maya ", ""],
+      participantNames: ["Maya"],
       language: "en",
       durationSeconds: 120,
     });
     expect(result.title).toBe("Q3 launch");
-    expect(result.participantNames).toEqual(["Maya"]);
+    expect(result.language).toBe("en");
+    expect("participantNames" in result).toBe(false);
   });
 
   it("rejects a missing title and unsupported language", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   Search,
+  Sparkles,
   Tags,
   UsersRound,
   X,
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { apiFetch } from "@/lib/client-api";
+import { deriveSpeakers } from "@/lib/speakers";
 import { cn, formatTimestamp } from "@/lib/utils";
 
 export function TranscriptPanel({
@@ -42,10 +44,15 @@ export function TranscriptPanel({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const speakers = useMemo(() => {
-    const unique = new Map<string, string>();
-    for (const segment of segments) unique.set(segment.speakerId, segment.speakerLabel);
-    return Array.from(unique.entries());
+  const speakers = useMemo(
+    () => deriveSpeakers(segments, meeting.report?.speakerSuggestions ?? []),
+    [segments, meeting.report?.speakerSuggestions],
+  );
+
+  useEffect(() => {
+    const map: Record<string, string> = {};
+    for (const segment of segments) map[segment.speakerId] = segment.speakerLabel;
+    setSpeakerMap(map);
   }, [segments]);
 
   const filtered = useMemo(() => {
@@ -123,12 +130,13 @@ export function TranscriptPanel({
             {meeting.transcriptMeta
               ? `${meeting.transcriptMeta.provider} · ${meeting.transcriptMeta.model} · ${meeting.transcriptMeta.diarized ? "diarized speaker labels" : "speaker diarization unavailable"}`
               : "Transcript segments"}
-            . Speaker labels are anonymous until you map them.
+            . Speakers are labeled automatically. Rename them once you can tell
+            who spoke.
           </p>
         </div>
         {!readOnly ? (
           <Button variant="secondary" size="sm" onClick={() => setMapOpen((value) => !value)}>
-            <Tags className="size-3.5" aria-hidden="true" /> Map speakers
+            <Tags className="size-3.5" aria-hidden="true" /> Rename speakers
           </Button>
         ) : null}
       </div>
@@ -137,9 +145,11 @@ export function TranscriptPanel({
         <div className="mt-5 rounded-2xl border border-accent/20 bg-white p-5 shadow-soft">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">Map anonymous speakers</p>
+              <p className="text-sm font-semibold">Rename speakers</p>
               <p className="mt-0.5 text-xs text-ink-faint">
-                Only rename a speaker when the transcript or your own knowledge supports it. Voice does not prove identity.
+                Only rename a speaker when the transcript or your own knowledge
+                supports it. Voice does not prove identity. Changes update the
+                transcript, report, action owners, and exports.
               </p>
             </div>
             <button
@@ -152,22 +162,56 @@ export function TranscriptPanel({
             </button>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {speakers.map(([speakerId, label]) => (
-              <div key={speakerId}>
-                <label className="mb-1 flex items-center justify-between text-[0.7rem] text-ink-faint" htmlFor={`map-${speakerId}`}>
-                  <span className="font-mono">{speakerId}</span>
-                  <span>{segments.filter((segment) => segment.speakerId === speakerId).length} segments</span>
-                </label>
-                <Input
-                  id={`map-${speakerId}`}
-                  value={speakerMap[speakerId] ?? label}
-                  onChange={(event) =>
-                    setSpeakerMap({ ...speakerMap, [speakerId]: event.target.value })
-                  }
-                  placeholder="Participant name"
-                />
-              </div>
-            ))}
+            {speakers.map((speaker) => {
+              const suggestion =
+                speaker.suggestedName &&
+                speaker.suggestedName.toLowerCase() !== speaker.label.toLowerCase()
+                  ? speaker.suggestedName
+                  : null;
+              return (
+                <div
+                  key={speaker.speakerId}
+                  className="rounded-xl border border-line p-3"
+                >
+                  <label className="mb-1 flex items-center justify-between text-[0.7rem] text-ink-faint" htmlFor={`map-${speaker.speakerId}`}>
+                    <span className="font-mono">{speaker.speakerId}</span>
+                    <span>
+                      {speaker.segmentCount} segment
+                      {speaker.segmentCount === 1 ? "" : "s"}
+                    </span>
+                  </label>
+                  <Input
+                    id={`map-${speaker.speakerId}`}
+                    value={speakerMap[speaker.speakerId] ?? speaker.label}
+                    onChange={(event) =>
+                      setSpeakerMap({
+                        ...speakerMap,
+                        [speaker.speakerId]: event.target.value,
+                      })
+                    }
+                    placeholder="Speaker name"
+                  />
+                  {suggestion ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSpeakerMap({
+                          ...speakerMap,
+                          [speaker.speakerId]: suggestion,
+                        })
+                      }
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-1 text-[0.62rem] font-medium text-accent-deep hover:bg-[#d7e9e0]"
+                    >
+                      <Sparkles className="size-2.5" aria-hidden="true" />
+                      AI suggests {suggestion}
+                      {speaker.suggestionConfidence === "contextual"
+                        ? " (possible)"
+                        : ""}
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setMapOpen(false)}>Cancel</Button>

@@ -40,6 +40,24 @@ export interface SpeakerContribution {
   evidence: EvidenceRef[];
 }
 
+export type SpeakerSuggestionConfidence = "stated" | "contextual";
+
+export interface SpeakerSuggestion {
+  speakerId: string;
+  suggestedName: string | null;
+  confidence: SpeakerSuggestionConfidence | null;
+}
+
+export interface SpeakerSummary {
+  speakerId: string;
+  label: string;
+  segmentCount: number;
+  firstSeenSeconds: number;
+  suggestedName: string | null;
+  suggestionConfidence: SpeakerSuggestionConfidence | null;
+  named: boolean;
+}
+
 export interface Decision {
   description: string;
   status: DecisionStatus;
@@ -60,6 +78,7 @@ export interface NextMeeting {
 export interface MeetingReport {
   executiveSummary: ExecutiveSummary;
   discussionPoints: DiscussionPoint[];
+  speakerSuggestions: SpeakerSuggestion[];
   speakerContributions: SpeakerContribution[];
   decisions: Decision[];
   openQuestions: OpenQuestion[];
@@ -124,7 +143,6 @@ export interface RecapMeta {
 export interface Meeting {
   id: string;
   title: string;
-  participantNames: string[];
   language: string;
   status: MeetingStatus;
   processingStage: ProcessingStage;

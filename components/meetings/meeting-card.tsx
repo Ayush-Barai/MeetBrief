@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowUpRight, Clock3, Globe2 } from "lucide-react";
 import type { Meeting } from "@/types";
 import { StatusBadge } from "@/components/ui/badge";
-import { formatDate, formatDuration, languageLabel, relativeTime } from "@/lib/utils";
+import { LocalDate } from "@/components/ui/local-datetime";
+import { formatDuration, languageLabel, relativeTime } from "@/lib/utils";
 
 export function MeetingCard({ meeting }: { meeting: Meeting }) {
   return (
@@ -16,7 +17,7 @@ export function MeetingCard({ meeting }: { meeting: Meeting }) {
           <StatusBadge status={meeting.status} />
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.68rem] text-ink-faint">
-          <span>{formatDate(meeting.createdAt)}</span>
+          <span><LocalDate value={meeting.createdAt} /></span>
           {meeting.durationSeconds ? (
             <span className="inline-flex items-center gap-1"><Clock3 className="size-3" aria-hidden="true" /> {formatDuration(meeting.durationSeconds)}</span>
           ) : null}

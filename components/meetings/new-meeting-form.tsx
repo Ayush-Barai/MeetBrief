@@ -81,8 +81,6 @@ async function readAudioDuration(file: File): Promise<number | null> {
 export function NewMeetingForm({ maxUploadMb }: { maxUploadMb: number }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [participants, setParticipants] = useState<string[]>([]);
-  const [participantDraft, setParticipantDraft] = useState("");
   const [language, setLanguage] = useState("en");
   const [mode, setMode] = useState<SourceMode>("upload");
   const [consent, setConsent] = useState(false);
@@ -147,18 +145,6 @@ export function NewMeetingForm({ maxUploadMb }: { maxUploadMb: number }) {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [recordState]);
-
-  const addParticipant = (raw: string) => {
-    const value = raw.trim().replace(/,$/, "");
-    if (!value) return;
-    if (participants.length >= 30) return;
-    if (participants.some((name) => name.toLowerCase() === value.toLowerCase())) {
-      setParticipantDraft("");
-      return;
-    }
-    setParticipants([...participants, value]);
-    setParticipantDraft("");
-  };
 
   const handleFile = async (file: File | null | undefined) => {
     setError(null);
@@ -333,7 +319,6 @@ export function NewMeetingForm({ maxUploadMb }: { maxUploadMb: number }) {
     const form = new FormData();
     form.append("audio", selection.file);
     form.append("title", title.trim());
-    form.append("participantNames", JSON.stringify(participants));
     form.append("language", language);
     form.append("consent", "true");
     if (selection.durationSeconds && Number.isFinite(selection.durationSeconds)) {
@@ -397,61 +382,10 @@ export function NewMeetingForm({ maxUploadMb }: { maxUploadMb: number }) {
                 autoFocus
               />
               <p className="mt-1.5 text-xs text-ink-faint">
-                A specific title makes reports easier to find later.
+                A specific title makes reports easier to find later. Speakers
+                are detected automatically after transcription—you can name
+                them in the report.
               </p>
-            </div>
-
-            <div>
-              <Label htmlFor="participants">Participants <span className="font-normal text-ink-faint">(optional)</span></Label>
-              <div className="flex gap-2">
-                <Input
-                  id="participants"
-                  value={participantDraft}
-                  onChange={(event) => setParticipantDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === ",") {
-                      event.preventDefault();
-                      addParticipant(participantDraft);
-                    }
-                  }}
-                  onBlur={() => addParticipant(participantDraft)}
-                  placeholder="Type a name and press Enter"
-                  maxLength={80}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => addParticipant(participantDraft)}
-                  disabled={!participantDraft.trim()}
-                  className="shrink-0"
-                >
-                  Add
-                </Button>
-              </div>
-              {participants.length ? (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {participants.map((participant) => (
-                    <span
-                      key={participant}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-white px-2.5 py-1 text-xs text-ink-soft"
-                    >
-                      {participant}
-                      <button
-                        type="button"
-                        onClick={() => setParticipants(participants.filter((name) => name !== participant))}
-                        className="text-ink-faint hover:text-danger"
-                        aria-label={`Remove ${participant}`}
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-1.5 text-xs text-ink-faint">
-                  Used only as context. Names are not inferred from voices.
-                </p>
-              )}
             </div>
 
             <div className="max-w-xs">
@@ -737,7 +671,7 @@ export function NewMeetingForm({ maxUploadMb }: { maxUploadMb: number }) {
           <ul className="mt-3 space-y-3">
             {[
               "Place the microphone near the room, not next to a laptop fan.",
-              "Ask people to introduce themselves so speaker labels are easier to map.",
+              "Speakers are labeled Person 1, Person 2… after transcription; you can rename them in the report.",
               "Uploading an existing recording is the most reliable path, especially for long meetings.",
               "Recording, upload, transcription, and AI analysis all require an internet connection.",
             ].map((line) => (

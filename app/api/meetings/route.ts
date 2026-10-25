@@ -54,19 +54,6 @@ export async function POST(request: Request) {
       );
     }
 
-    let participants: string[] = [];
-    const participantsRaw = form.get("participantNames");
-    if (typeof participantsRaw === "string" && participantsRaw.trim()) {
-      try {
-        const parsed = JSON.parse(participantsRaw);
-        if (Array.isArray(parsed)) {
-          participants = parsed.filter((value): value is string => typeof value === "string");
-        }
-      } catch {
-        participants = participantsRaw.split(",").map((value) => value.trim());
-      }
-    }
-
     const durationRaw = form.get("durationSeconds");
     const duration =
       typeof durationRaw === "string" && durationRaw.length > 0
@@ -75,7 +62,6 @@ export async function POST(request: Request) {
 
     const input = createMeetingSchema.parse({
       title: form.get("title"),
-      participantNames: participants.filter(Boolean).slice(0, 30),
       language: form.get("language") ?? "en",
       durationSeconds:
         duration !== null && Number.isFinite(duration) ? duration : null,
@@ -98,7 +84,6 @@ export async function POST(request: Request) {
     const meeting = await createMeetingDoc({
       userId,
       title: input.title,
-      participantNames: input.participantNames,
       language: input.language,
       durationSeconds: input.durationSeconds ?? null,
       audio: {

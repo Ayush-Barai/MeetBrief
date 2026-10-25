@@ -46,9 +46,9 @@ interface DeepgramResponse {
 
 function labelForSpeaker(speaker: number | undefined): string {
   if (speaker === undefined || speaker === null || Number.isNaN(speaker)) {
-    return "Speaker 1";
+    return "Person 1";
   }
-  return `Speaker ${speaker + 1}`;
+  return `Person ${speaker + 1}`;
 }
 
 function parseUtterances(response: DeepgramResponse): RawTranscriptSegment[] {
@@ -84,7 +84,7 @@ function parseUtterances(response: DeepgramResponse): RawTranscriptSegment[] {
         startSeconds: 0,
         endSeconds: 0,
         speakerId: "speaker-1",
-        speakerLabel: "Speaker 1",
+        speakerLabel: "Person 1",
         text,
         confidence: alternative?.confidence ?? null,
       },

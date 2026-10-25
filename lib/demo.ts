@@ -3,7 +3,6 @@ import type { MeetingDetail } from "@/types";
 export const DEMO_MEETING: MeetingDetail = {
   id: "demo-meeting",
   title: "Q3 Launch Readiness",
-  participantNames: ["Maya Chen", "Daniel Okafor", "Priya Raman", "Leo Fischer"],
   language: "en",
   status: "completed",
   processingStage: "done",
@@ -129,10 +128,32 @@ export const DEMO_MEETING: MeetingDetail = {
         ],
       },
     ],
+    speakerSuggestions: [
+      {
+        speakerId: "speaker-1",
+        suggestedName: "Maya Chen",
+        confidence: "stated",
+      },
+      {
+        speakerId: "speaker-2",
+        suggestedName: "Daniel Okafor",
+        confidence: "stated",
+      },
+      {
+        speakerId: "speaker-3",
+        suggestedName: "Priya Raman",
+        confidence: "stated",
+      },
+      {
+        speakerId: "speaker-4",
+        suggestedName: "Leo Fischer",
+        confidence: "stated",
+      },
+    ],
     speakerContributions: [
       {
         speakerId: "speaker-1",
-        speakerName: "Maya Chen",
+        speakerName: "Person 1",
         points: [
           "Kept the team focused on the September 30 date and scope freeze.",
           "Proposed moving the Salesforce sync out of launch scope.",
@@ -148,7 +169,7 @@ export const DEMO_MEETING: MeetingDetail = {
       },
       {
         speakerId: "speaker-2",
-        speakerName: "Daniel Okafor",
+        speakerName: "Person 2",
         points: [
           "Raised trial-length conversion data.",
           "Suggested preserving 30-day terms for existing trials.",
@@ -164,7 +185,7 @@ export const DEMO_MEETING: MeetingDetail = {
       },
       {
         speakerId: "speaker-3",
-        speakerName: "Priya Raman",
+        speakerName: "Person 3",
         points: [
           "Flagged mobile Safari QA coverage as an open risk.",
           "Volunteered to run launch-week triage.",
@@ -179,7 +200,7 @@ export const DEMO_MEETING: MeetingDetail = {
       },
       {
         speakerId: "speaker-4",
-        speakerName: "Leo Fischer",
+        speakerName: "Person 4",
         points: [
           "Proposed the temporary weekend support shift.",
           "Estimated one contractor can cover the weekend queue.",
@@ -269,7 +290,7 @@ export const DEMO_MEETING: MeetingDetail = {
       id: "demo-a1",
       meetingId: "demo-meeting",
       task: "Send the trial announcement copy to legal for review.",
-      owner: "Daniel Okafor",
+      owner: "Person 2",
       deadline: "September 22",
       priority: "high",
       status: "in_progress",
@@ -284,7 +305,7 @@ export const DEMO_MEETING: MeetingDetail = {
       id: "demo-a2",
       meetingId: "demo-meeting",
       task: "Complete mobile Safari checkout QA and report any blockers.",
-      owner: "Priya Raman",
+      owner: "Person 3",
       deadline: "September 24",
       priority: "high",
       status: "pending",
@@ -298,7 +319,7 @@ export const DEMO_MEETING: MeetingDetail = {
       id: "demo-a3",
       meetingId: "demo-meeting",
       task: "Confirm contractor availability for the weekend support shift.",
-      owner: "Leo Fischer",
+      owner: "Person 4",
       deadline: "September 23",
       priority: "medium",
       status: "pending",
@@ -313,14 +334,14 @@ export const DEMO_MEETING: MeetingDetail = {
       id: "demo-a4",
       meetingId: "demo-meeting",
       task: "Set up the daily 9:00 CET launch triage.",
-      owner: "Maya Chen",
+      owner: "Person 1",
       deadline: "September 29",
       priority: "medium",
       status: "completed",
-      evidenceTimestamp: 1_248,
+      evidenceTimestamp: 1_402,
       evidenceText:
-        "I'd rather add one weekend shift for launch week than under-cover the first weekend.",
-      sourceSegmentId: "demo-s5",
+        "Good. I'll set up the daily triage and share the runbook before Friday.",
+      sourceSegmentId: "demo-s6",
       createdAt: "2026-09-18T15:05:00.000Z",
       updatedAt: "2026-09-19T09:12:00.000Z",
     },
@@ -333,8 +354,8 @@ export const DEMO_MEETING: MeetingDetail = {
       startSeconds: 84,
       endSeconds: 97,
       speakerId: "speaker-1",
-      speakerLabel: "Maya Chen",
-      text: "I think we keep the export work in scope and move Salesforce to the next release.",
+      speakerLabel: "Person 1",
+      text: "I'm Maya Chen. I think we keep the export work in scope and move Salesforce to the next release.",
       confidence: 0.96,
     },
     {
@@ -344,8 +365,8 @@ export const DEMO_MEETING: MeetingDetail = {
       startSeconds: 149,
       endSeconds: 163,
       speakerId: "speaker-3",
-      speakerLabel: "Priya Raman",
-      text: "September 30 is still realistic if we freeze scope today.",
+      speakerLabel: "Person 3",
+      text: "I'm Priya Raman. September 30 is still realistic if we freeze scope today.",
       confidence: 0.94,
     },
     {
@@ -355,8 +376,8 @@ export const DEMO_MEETING: MeetingDetail = {
       startSeconds: 386,
       endSeconds: 405,
       speakerId: "speaker-2",
-      speakerLabel: "Daniel Okafor",
-      text: "We can move to fourteen days, but I don't want to announce it until legal signs off.",
+      speakerLabel: "Person 2",
+      text: "I'm Daniel Okafor. We can move to fourteen days, but I don't want to announce it until legal signs off.",
       confidence: 0.92,
     },
     {
@@ -366,7 +387,7 @@ export const DEMO_MEETING: MeetingDetail = {
       startSeconds: 432,
       endSeconds: 444,
       speakerId: "speaker-2",
-      speakerLabel: "Daniel Okafor",
+      speakerLabel: "Person 2",
       text: "Let's keep existing trials on the 30-day terms.",
       confidence: 0.95,
     },
@@ -377,8 +398,8 @@ export const DEMO_MEETING: MeetingDetail = {
       startSeconds: 1_248,
       endSeconds: 1_267,
       speakerId: "speaker-4",
-      speakerLabel: "Leo Fischer",
-      text: "I'd rather add one weekend shift for launch week than under-cover the first weekend.",
+      speakerLabel: "Person 4",
+      text: "I'm Leo Fischer. I'd rather add one weekend shift for launch week than under-cover the first weekend.",
       confidence: 0.93,
     },
     {
@@ -388,7 +409,7 @@ export const DEMO_MEETING: MeetingDetail = {
       startSeconds: 1_402,
       endSeconds: 1_420,
       speakerId: "speaker-1",
-      speakerLabel: "Maya Chen",
+      speakerLabel: "Person 1",
       text: "Good. I'll set up the daily triage and share the runbook before Friday.",
       confidence: 0.95,
     },

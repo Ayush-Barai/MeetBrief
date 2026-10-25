@@ -4,6 +4,7 @@ import type {
   DecisionStatus,
   EvidenceRef,
   MeetingReport,
+  SpeakerSuggestion,
   TranscriptSegment,
 } from "@/types";
 import type { AiReport } from "@/lib/validation/schemas";
@@ -12,6 +13,7 @@ import { formatTimestamp } from "@/lib/utils";
 export interface GeneratedReportSections {
   executiveSummary: MeetingReport["executiveSummary"];
   discussionPoints: MeetingReport["discussionPoints"];
+  speakerSuggestions: MeetingReport["speakerSuggestions"];
   speakerContributions: MeetingReport["speakerContributions"];
   decisions: MeetingReport["decisions"];
   openQuestions: MeetingReport["openQuestions"];
@@ -103,6 +105,89 @@ function supportsDate(value: string, fullText: string): boolean {
   return tokens.some((token) => fullText.includes(token));
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isPlaceholderName(value: string): boolean {
+  return /^(person|speaker|participant|unknown|unassigned|host|moderator)\s*\d*$/i.test(
+    value.trim(),
+  );
+}
+
+function isSelfIntroduction(name: string, text: string): boolean {
+  const escaped = escapeRegExp(name);
+  // Require a real boundary after the name so "Maya's idea" is not treated as
+  // "I'm Maya". "This is ..." only counts when used as an introduction.
+  const boundary = "(?=[,.!?;:]|\\s|$)";
+  return [
+    `\\b(?:i[\u2019']?m|i am|my name is|call me|you can call me|i go by)\\s+${escaped}${boundary}`,
+    `\\bthis is\\s+${escaped}(?=\\s+(?:speaking|here)\\b|[,.!?;:]|$)`,
+    `\\b${escaped}\\s+here\\b`,
+  ].some((pattern) => new RegExp(pattern, "i").test(text));
+}
+
+function reconcileSpeakerSuggestions(
+  candidates: AiReport["speakerSuggestions"],
+  segments: TranscriptSegment[],
+  speakerIds: Set<string>,
+  speakerLabels: Map<string, string>,
+  warnings: string[],
+): SpeakerSuggestion[] {
+  const speakerText = new Map<string, string[]>();
+  for (const segment of segments) {
+    const texts = speakerText.get(segment.speakerId) ?? [];
+    texts.push(segment.text);
+    speakerText.set(segment.speakerId, texts);
+  }
+
+  const usedNames = new Set<string>();
+  const suggestions: SpeakerSuggestion[] = [];
+
+  for (const candidate of candidates ?? []) {
+    const speakerId = candidate.speakerId.trim();
+    const name = candidate.suggestedName.trim();
+    if (!name || isPlaceholderName(name)) continue;
+
+    if (!speakerIds.has(speakerId)) {
+      warnings.push(
+        `A suggested speaker name (“${name}”) referenced an unknown speaker and was not used.`,
+      );
+      continue;
+    }
+
+    const ownTexts = speakerText.get(speakerId) ?? [];
+    const selfIdentified = ownTexts.some(
+      (text) =>
+        text.toLowerCase().includes(name.toLowerCase()) &&
+        isSelfIntroduction(name, text),
+    );
+    if (!selfIdentified) {
+      warnings.push(
+        `Suggested name “${name}” was not explicitly self-identified by ${speakerLabels.get(speakerId) ?? speakerId} and was not used.`,
+      );
+      continue;
+    }
+
+    const key = name.toLowerCase();
+    if (usedNames.has(key)) {
+      warnings.push(
+        `Suggested name “${name}” was assigned to more than one speaker and was only kept once.`,
+      );
+      continue;
+    }
+
+    suggestions.push({
+      speakerId,
+      suggestedName: name,
+      confidence: "stated",
+    });
+    usedNames.add(key);
+  }
+
+  return suggestions;
+}
+
 export function reconcileReport(
   raw: AiReport,
   segments: TranscriptSegment[],
@@ -114,6 +199,22 @@ export function reconcileReport(
   const speakerLabels = new Map(
     segments.map((segment) => [segment.speakerId, segment.speakerLabel]),
   );
+  const speakerSuggestions = reconcileSpeakerSuggestions(
+    raw.speakerSuggestions,
+    segments,
+    speakerIds,
+    speakerLabels,
+    warnings,
+  );
+  const knownSpeakerNames = new Set<string>();
+  for (const label of speakerLabels.values()) {
+    knownSpeakerNames.add(label.toLowerCase());
+  }
+  for (const suggestion of speakerSuggestions) {
+    if (suggestion.suggestedName) {
+      knownSpeakerNames.add(suggestion.suggestedName.toLowerCase());
+    }
+  }
 
   const discussionPoints = raw.discussionPoints.map((point, index) => ({
     topic: point.topic || `Discussion ${index + 1}`,
@@ -197,7 +298,11 @@ export function reconcileReport(
         `Action “${item.task.slice(0, 60)}”`,
       );
       let owner = normalizeMissing(item.owner, UNASSIGNED);
-      if (owner !== UNASSIGNED && !verifyMention(owner, fullText)) {
+      if (
+        owner !== UNASSIGNED &&
+        !verifyMention(owner, fullText) &&
+        !knownSpeakerNames.has(owner.toLowerCase())
+      ) {
         warnings.push(
           `Owner “${owner}” was not explicitly found in the transcript and was changed to Unassigned.`,
         );
@@ -252,6 +357,7 @@ export function reconcileReport(
       takeaways: raw.executiveSummary.takeaways,
     },
     discussionPoints,
+    speakerSuggestions,
     speakerContributions,
     decisions,
     openQuestions,
@@ -268,7 +374,7 @@ export function reconcileReport(
 export function buildReportMarkdown(input: {
   title: string;
   createdAt: string;
-  participants: string[];
+  speakers: string[];
   language: string;
   report: MeetingReport | GeneratedReportSections;
   actionItems: ActionItem[] | GeneratedActionItem[];
@@ -279,8 +385,8 @@ export function buildReportMarkdown(input: {
   lines.push(`# ${input.title}`);
   lines.push("");
   lines.push(`*${new Date(input.createdAt).toUTCString()} · ${input.language.toUpperCase()}*`);
-  if (input.participants.length) {
-    lines.push(`**Participants:** ${input.participants.join(", ")}`);
+  if (input.speakers.length) {
+    lines.push(`**Speakers:** ${input.speakers.join(", ")}`);
   }
   lines.push("");
   lines.push("## Executive summary");

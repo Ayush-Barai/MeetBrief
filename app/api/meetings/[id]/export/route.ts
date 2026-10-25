@@ -2,6 +2,7 @@ import { getSessionUserId } from "@/lib/auth/session";
 import { apiError, unauthorized } from "@/lib/api";
 import { loadMeetingDetail } from "@/lib/meetings/repository";
 import { buildReportMarkdown } from "@/lib/ai/report";
+import { speakerLabelsFor } from "@/lib/speakers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,10 @@ export async function GET(
     const markdown = buildReportMarkdown({
       title: meeting.title,
       createdAt: meeting.createdAt,
-      participants: meeting.participantNames,
+      speakers: speakerLabelsFor(
+        meeting.transcript,
+        meeting.report.speakerSuggestions ?? [],
+      ),
       language: meeting.language,
       report: meeting.report,
       actionItems: meeting.actionItems,

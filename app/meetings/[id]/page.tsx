@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { ArrowLeft, CalendarDays, Clock3, Globe2, UsersRound } from "lucide-react";
 import { requireSessionUserId } from "@/lib/auth/session";
 import { loadMeetingDetail } from "@/lib/meetings/repository";
+import { deriveSpeakers } from "@/lib/speakers";
 import { StatusBadge } from "@/components/ui/badge";
 import { MeetingWorkspace } from "@/components/meetings/meeting-workspace";
 import { MeetingCapturePanel } from "@/components/meetings/meeting-capture-panel";
@@ -34,6 +35,10 @@ export default async function MeetingPage({
   const { id } = await params;
   const meeting = await loadMeetingDetail(userId, id);
   if (!meeting) notFound();
+  const speakers = deriveSpeakers(
+    meeting.transcript,
+    meeting.report?.speakerSuggestions ?? [],
+  );
 
   return (
     <div className="container-page py-8 md:py-10">
@@ -72,10 +77,13 @@ export default async function MeetingPage({
                 <Globe2 className="size-3.5" aria-hidden="true" />
                 {languageLabel(meeting.language)}
               </span>
-              {meeting.participantNames.length ? (
+              {speakers.length ? (
                 <span className="inline-flex items-center gap-1.5">
                   <UsersRound className="size-3.5" aria-hidden="true" />
-                  {meeting.participantNames.join(", ")}
+                  {speakers.length} speaker{speakers.length === 1 ? "" : "s"}
+                  {speakers.length <= 4
+                    ? `: ${speakers.map((speaker) => speaker.label).join(", ")}`
+                    : ""}
                 </span>
               ) : null}
             </div>

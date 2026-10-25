@@ -28,7 +28,6 @@ export interface MeetingDoc extends Document {
   _id: ObjectId;
   userId: string;
   title: string;
-  participantNames: string[];
   language: string;
   status: MeetingStatus;
   processingStage: ProcessingStage;
@@ -61,6 +60,7 @@ export interface ReportDoc extends Document {
   meetingId: ObjectId;
   executiveSummary: MeetingReport["executiveSummary"];
   discussionPoints: MeetingReport["discussionPoints"];
+  speakerSuggestions: MeetingReport["speakerSuggestions"];
   speakerContributions: MeetingReport["speakerContributions"];
   decisions: MeetingReport["decisions"];
   openQuestions: MeetingReport["openQuestions"];
@@ -124,7 +124,6 @@ export function meetingToDto(doc: MeetingDoc): Meeting {
   return {
     id: doc._id.toHexString(),
     title: doc.title,
-    participantNames: doc.participantNames ?? [],
     language: doc.language,
     status: doc.status,
     processingStage: doc.processingStage ?? "queued",
@@ -143,6 +142,7 @@ export function reportToDto(doc: ReportDoc): MeetingReport {
   return {
     executiveSummary: doc.executiveSummary,
     discussionPoints: doc.discussionPoints ?? [],
+    speakerSuggestions: doc.speakerSuggestions ?? [],
     speakerContributions: doc.speakerContributions ?? [],
     decisions: doc.decisions ?? [],
     openQuestions: doc.openQuestions ?? [],
@@ -335,7 +335,6 @@ export async function getMeetingStats(userId: string): Promise<MeetingStats> {
 export async function createMeetingDoc(input: {
   userId: string;
   title: string;
-  participantNames: string[];
   language: string;
   durationSeconds: number | null;
   audio: MeetingDoc["audio"];
@@ -345,7 +344,6 @@ export async function createMeetingDoc(input: {
   const doc: Omit<MeetingDoc, "_id"> = {
     userId: input.userId,
     title: input.title,
-    participantNames: input.participantNames,
     language: input.language,
     status: "uploaded",
     processingStage: "queued",
@@ -459,6 +457,7 @@ export async function saveReport(
         meetingId,
         executiveSummary: report.executiveSummary,
         discussionPoints: report.discussionPoints,
+        speakerSuggestions: report.speakerSuggestions,
         speakerContributions: report.speakerContributions,
         decisions: report.decisions,
         openQuestions: report.openQuestions,

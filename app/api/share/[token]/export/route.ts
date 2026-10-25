@@ -1,5 +1,6 @@
 import { assembleDetail, getMeetingByShareHash } from "@/lib/meetings/repository";
 import { buildReportMarkdown } from "@/lib/ai/report";
+import { speakerLabelsFor } from "@/lib/speakers";
 import { hashShareToken, isValidShareTokenFormat } from "@/lib/share";
 import { apiError } from "@/lib/api";
 
@@ -26,7 +27,10 @@ export async function GET(
     const markdown = buildReportMarkdown({
       title: meeting.title,
       createdAt: meeting.createdAt,
-      participants: meeting.participantNames,
+      speakers: speakerLabelsFor(
+        meeting.transcript,
+        meeting.report.speakerSuggestions ?? [],
+      ),
       language: meeting.language,
       report: meeting.report,
       actionItems: meeting.actionItems,

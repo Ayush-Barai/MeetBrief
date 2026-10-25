@@ -9,10 +9,12 @@ NON-NEGOTIABLE RULES
 3. For owners: use an owner ONLY if a person is explicitly assigned the task. Otherwise write "Unassigned".
 4. For deadlines: use a deadline ONLY if it is explicitly stated. Otherwise write "Not specified".
 5. Cite transcript evidence using the exact segment IDs shown in brackets, e.g. "segId": "s12". Include the actual timestamp and a short exact quote. Every decision and action item must cite at least one segment when evidence exists.
-6. Do not infer a person's identity from their voice. Speaker labels are anonymous unless a name is explicitly used in the conversation.
-7. If the transcript is ambiguous, incomplete, or does not cover something, say so in openQuestions and validation notes rather than filling gaps.
-8. Write in the language used for most of the meeting. Keep the summary concise and useful.
-9. Return ONLY valid JSON. No markdown fences, no commentary.
+6. Speaker labels (for example "Person 1") come from diarization. They are anonymous. Never guess a speaker's identity from their voice, role, seniority, or the topic.
+7. Only add a real name to "speakerSuggestions" when that same speaker explicitly identifies themselves in their own transcript line ("I'm Ayush", "My name is ...", "This is ... speaking", "Call me ..."). If there is no explicit self-identification, omit the suggestion. Never invent a name or copy a name mentioned by someone else onto a different speaker.
+8. In "speakerContributions", "speakerName" must exactly match the transcript speaker label (for example "Person 1"). Do not replace it with a guessed name.
+9. If the transcript is ambiguous, incomplete, or does not cover something, say so in openQuestions and validation notes rather than filling gaps.
+10. Write in the language used for most of the meeting. Keep the summary concise and useful.
+11. Return ONLY valid JSON. No markdown fences, no commentary.
 
 Return this exact JSON shape:
 {
@@ -30,10 +32,18 @@ Return this exact JSON shape:
       "evidence": [{"segmentId": "s1", "timestampSeconds": 12.4, "quote": "exact short quote"}]
     }
   ],
+  "speakerSuggestions": [
+    {
+      "speakerId": "speaker-1",
+      "suggestedName": "name only when the speaker explicitly identifies themselves",
+      "confidence": "stated",
+      "evidence": [{"segmentId": "s1", "timestampSeconds": 12.4, "quote": "exact short quote"}]
+    }
+  ],
   "speakerContributions": [
     {
       "speakerId": "speaker-1",
-      "speakerName": "Speaker 1 or explicit name",
+      "speakerName": "exact transcript label, e.g. Person 1",
       "points": ["string"],
       "evidence": [{"segmentId": "s1", "timestampSeconds": 12.4, "quote": "exact short quote"}]
     }
@@ -48,7 +58,7 @@ Return this exact JSON shape:
   "actionItems": [
     {
       "task": "string",
-      "owner": "name or Unassigned",
+      "owner": "name or transcript label or Unassigned",
       "deadline": "explicit deadline or Not specified",
       "priority": "high" | "medium" | "low" | "unspecified",
       "evidence": [{"segmentId": "s1", "timestampSeconds": 12.4, "quote": "exact short quote"}]
@@ -68,20 +78,26 @@ Return this exact JSON shape:
 }`;
 
 export function buildReportUserPrompt(
-  meeting: Pick<
-    Meeting,
-    "title" | "participantNames" | "language" | "durationSeconds"
-  >,
+  meeting: Pick<Meeting, "title" | "language" | "durationSeconds">,
   segments: TranscriptSegment[],
 ): { prompt: string; truncated: boolean } {
+  const speakers = new Map<string, string>();
+  for (const segment of segments) {
+    if (!speakers.has(segment.speakerId)) {
+      speakers.set(segment.speakerId, segment.speakerLabel);
+    }
+  }
+
   const header = [
     `Meeting title: ${meeting.title}`,
     `Language: ${languageLabel(meeting.language)}`,
     `Duration: ${meeting.durationSeconds ? `${Math.round(meeting.durationSeconds / 60)} minutes` : "unknown"}`,
-    `Known participants (may not all speak): ${
-      meeting.participantNames.length
-        ? meeting.participantNames.join(", ")
-        : "not provided"
+    `Speakers detected by diarization: ${
+      speakers.size
+        ? Array.from(speakers.entries())
+            .map(([speakerId, label]) => `${speakerId} = ${label}`)
+            .join(", ")
+        : "none"
     }`,
     "",
     "Transcript segments (use the ID before each line for citations):",

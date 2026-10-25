@@ -13,6 +13,7 @@ import {
 import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DEMO_MEETING, DEMO_NOTICE } from "@/lib/demo";
+import { deriveSpeakers } from "@/lib/speakers";
 import { formatDuration, formatTimestamp } from "@/lib/utils";
 
 const principles = [
@@ -88,7 +89,8 @@ export default function LandingPage() {
                   <div>
                     <h2 className="display text-xl leading-tight sm:text-2xl">{demo.title}</h2>
                     <p className="mt-1.5 text-xs text-ink-faint">
-                      Sep 18, 2026 · {formatDuration(demo.durationSeconds)} · {demo.participantNames.length} participants
+                      Sep 18, 2026 · {formatDuration(demo.durationSeconds)} ·{" "}
+                      {deriveSpeakers(demo.transcript).length} speakers
                     </p>
                   </div>
                   <span className="hidden rounded-full border border-accent/15 bg-accent-soft px-2.5 py-1 text-[0.65rem] font-medium text-accent-deep sm:block">

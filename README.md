@@ -28,11 +28,12 @@ MeetBrief AI turns a meeting recording into a transcript, an evidence-linked rep
 
 ## What it does
 
-- **Upload or record** a meeting with explicit participant-consent confirmation.
-- **Transcribe** with timestamps and speaker diarization (Deepgram `nova-3` by default; an OpenAI-compatible Whisper endpoint is also supported).
+- **Upload or record** a meeting with explicit participant-consent confirmation. No attendee list is required.
+- **Transcribe** with timestamps and speaker diarization (Deepgram `nova-3` by default; an OpenAI-compatible Whisper endpoint is also supported). Distinct speakers are labeled `Person 1`, `Person 2`, and so on.
 - **Generate a structured Gemma report**: purpose, key outcomes, takeaways, discussion points, decisions, owners, deadlines, open questions, and next-meeting agenda.
+- **Suggest speaker names safely**: Gemma suggests a real name only when that speaker explicitly identifies themselves in the transcript. Suggestions are shown separately from the anonymous label and require user confirmation.
 - **Verify evidence**: model claims are checked against transcript segment IDs. Unsupported decisions, owners, deadlines, and dates are removed or rewritten, and warnings are shown in the report.
-- **Edit safely**: summary, decisions, transcript text, speaker mapping, and action items can be corrected by the owner.
+- **Edit safely**: summary, decisions, transcript text, speaker names, and action items can be corrected by the owner. Renaming a speaker updates the transcript, report prose, speaker contributions, matching action owners, exports, and recap script while leaving evidence quotes untouched.
 - **Create an audio recap** with ElevenLabs from a deterministic script built from the edited report.
 - **Share with control**: read-only share links use 256-bit tokens; only the SHA-256 hash is stored, and links can be revoked.
 - **Export**: copy the summary, download Markdown, or print the report.
@@ -211,7 +212,7 @@ DEEPGRAM_API_KEY=...
 DEEPGRAM_MODEL=nova-3
 ```
 
-Deepgram returns timestamps and diarized speaker labels. Speaker labels are anonymous (`speaker_0`, etc.) until a user maps them on the transcript tab.
+Deepgram returns timestamps and diarized speaker labels. Distinct speakers are shown as `Person 1`, `Person 2`, etc. Gemma may suggest a real name when a speaker explicitly introduces themselves, but the anonymous label stays until the user confirms the rename in the report.
 
 **Whisper-compatible endpoint:**
 
@@ -285,9 +286,9 @@ Never commit `.env.local`. Rotate a key immediately if it is exposed.
 
 | Collection | Contents |
 | --- | --- |
-| `meetings` | Owner, title, participants, language, status/stage, audio reference, transcript metadata, recap metadata, share-token hash |
+| `meetings` | Owner, title, language, status/stage, audio reference, transcript metadata, recap metadata, share-token hash |
 | `transcript_segments` | Ordered timestamped segments with speaker ID/label and confidence |
-| `reports` | Validated executive summary, discussion points, speaker contributions, decisions, open questions, next meeting, warnings |
+| `reports` | Validated executive summary, discussion points, speaker suggestions, speaker contributions, decisions, open questions, next meeting, warnings |
 | `action_items` | Task, owner, deadline, priority, status, evidence timestamp/text, source segment |
 | `meeting_files` (GridFS) | Original recordings and generated recap MP3s, plus the `.files`/`.chunks` collections |
 
@@ -354,10 +355,10 @@ Render restarts and deploys can interrupt in-flight `after()` processing. The me
 ## Demo workflow
 
 1. Open `/demo` (no sign-in required) to explore a complete fictional report. Switch through Overview, Transcript, Decisions, Action items, and Audio recap.
-2. Open `/meetings/new`, enter a title, add participants, and choose **Upload audio** or **Record in browser**.
+2. Open `/meetings/new`, enter a title, and choose **Upload audio** or **Record in browser**.
 3. Confirm consent, then upload/create the meeting. The meeting page shows the stored recording and a processing button.
 4. Start analysis once transcription and Gemma are configured. Watch the stage progress; cancel or retry if needed.
-5. Review the report, jump from evidence to transcript moments, map speaker labels, and edit action items.
+5. Review the report, jump from evidence to transcript moments, rename `Person 1`/`Person 2` speakers (or accept an AI suggestion), and edit action items.
 6. Generate an audio recap if ElevenLabs is configured.
 7. Share the report read-only, copy the summary, download Markdown, print, or delete the meeting.
 
@@ -377,7 +378,8 @@ Current tests cover:
 - Markdown export
 - Recap script generation
 - Share-token format/hash helpers
-- Upload/create validation (including participant normalization)
+- Upload/create validation without a manual participant list
+- Speaker-name suggestion safety and cross-report renaming
 
 UI QA has been performed at desktop and narrow widths for the landing page, dashboard, demo, new-meeting, setup, install, privacy, and offline routes, including demo tab switching and console checks.
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, Clock3, Globe2, Lock, UsersRound } from "lucide-react";
 import { assembleDetail, getMeetingByShareHash } from "@/lib/meetings/repository";
+import { deriveSpeakers } from "@/lib/speakers";
 import { hashShareToken, isValidShareTokenFormat } from "@/lib/share";
 import { MeetingWorkspace } from "@/components/meetings/meeting-workspace";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,10 @@ export default async function SharedMeetingPage({
   if (!doc || !doc.share) notFound();
   const meeting = await assembleDetail(doc);
   if (!meeting.report) notFound();
+  const speakers = deriveSpeakers(
+    meeting.transcript,
+    meeting.report.speakerSuggestions ?? [],
+  );
 
   return (
     <div className="container-page py-8 md:py-10">
@@ -63,10 +68,13 @@ export default async function SharedMeetingPage({
             <Globe2 className="size-3.5" aria-hidden="true" />
             {languageLabel(meeting.language)}
           </span>
-          {meeting.participantNames.length ? (
+          {speakers.length ? (
             <span className="inline-flex items-center gap-1.5">
               <UsersRound className="size-3.5" aria-hidden="true" />
-              {meeting.participantNames.join(", ")}
+              {speakers.length} speaker{speakers.length === 1 ? "" : "s"}
+              {speakers.length <= 4
+                ? `: ${speakers.map((speaker) => speaker.label).join(", ")}`
+                : ""}
             </span>
           ) : null}
         </div>

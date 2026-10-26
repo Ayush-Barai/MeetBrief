@@ -19,18 +19,22 @@ services:
         generateValue: true
       - key: NEXT_PUBLIC_APP_URL
         sync: false
-      - key: TRANSCRIPTION_PROVIDER
-        value: deepgram
-      - key: DEEPGRAM_API_KEY
+      - key: TRANSCRIPTION_API_URL
         sync: false
-      - key: DEEPGRAM_MODEL
-        value: nova-3
+      - key: TRANSCRIPTION_API_KEY
+        sync: false
+      - key: TRANSCRIPTION_MODEL
+        value: whisper-1
+      - key: TRANSCRIPTION_TIMEOUT_MS
+        value: 600000
       - key: GEMMA_API_URL
         sync: false
       - key: GEMMA_API_KEY
         sync: false
       - key: GEMMA_MODEL
         value: gemma3:27b
+      - key: GEMMA_TIMEOUT_MS
+        value: 180000
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: ELEVENLABS_VOICE_ID

@@ -29,10 +29,14 @@ const items = [
   },
   {
     key: "transcription" as const,
-    title: "Transcription",
+    title: "Open-source transcription",
     icon: Mic2,
-    env: ["TRANSCRIPTION_PROVIDER", "DEEPGRAM_API_KEY", "TRANSCRIPTION_API_KEY"],
-    body: "Deepgram is the default adapter and provides timestamps plus speaker diarization. A Whisper-compatible endpoint is also supported but does not diarize by default.",
+    env: [
+      "TRANSCRIPTION_API_URL",
+      "TRANSCRIPTION_API_KEY",
+      "TRANSCRIPTION_MODEL",
+    ],
+    body: "MeetBrief talks to an OpenAI-compatible Whisper endpoint, so you can self-host the model with open-source software such as ScribeCrate (faster-whisper), whisper.cpp, or vLLM. Enable WHISPER_DIARIZATION=true on ScribeCrate for Person 1/Person 2 labels.",
   },
   {
     key: "gemma" as const,

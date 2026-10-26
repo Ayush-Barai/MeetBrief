@@ -2,7 +2,7 @@
 
 **Meetings end. Next steps don't get lost.**
 
-MeetBrief AI turns a meeting recording into a transcript, an evidence-linked report, assigned action items, and an optional spoken recap. It is a Next.js App Router PWA backed by MongoDB Atlas, with real transcription, Gemma, and ElevenLabs integrations — no simulated AI responses.
+MeetBrief AI turns a meeting recording into a transcript, an evidence-linked report, assigned action items, and an optional spoken recap. It is a Next.js App Router PWA backed by MongoDB Atlas, with open-source Whisper transcription, Gemma analysis, and ElevenLabs audio — no simulated AI responses.
 
 ![MeetBrief landing page](screenshots/landing.png)
 
@@ -20,6 +20,7 @@ MeetBrief AI turns a meeting recording into a transcript, an evidence-linked rep
 - [Security and privacy](#security-and-privacy)
 - [PWA and offline behavior](#pwa-and-offline-behavior)
 - [Deploy to Render](#deploy-to-render)
+- [Full deployment guide](DEPLOYMENT.md)
 - [Demo workflow](#demo-workflow)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
@@ -29,7 +30,7 @@ MeetBrief AI turns a meeting recording into a transcript, an evidence-linked rep
 ## What it does
 
 - **Upload or record** a meeting with explicit participant-consent confirmation. No attendee list is required.
-- **Transcribe** with timestamps and speaker diarization (Deepgram `nova-3` by default; an OpenAI-compatible Whisper endpoint is also supported). Distinct speakers are labeled `Person 1`, `Person 2`, and so on.
+- **Transcribe** with timestamps using an OpenAI-compatible, self-hosted Whisper server (open-source `faster-whisper`/ScribeCrate by default). Enable server-side diarization to get `Person 1`, `Person 2`, and so on.
 - **Generate a structured Gemma report**: purpose, key outcomes, takeaways, discussion points, decisions, owners, deadlines, open questions, and next-meeting agenda.
 - **Suggest speaker names safely**: Gemma suggests a real name only when that speaker explicitly identifies themselves in the transcript. Suggestions are shown separately from the anonymous label and require user confirmation.
 - **Verify evidence**: model claims are checked against transcript segment IDs. Unsupported decisions, owners, deadlines, and dates are removed or rewritten, and warnings are shown in the report.
@@ -60,7 +61,7 @@ MeetBrief AI turns a meeting recording into a transcript, an evidence-linked rep
 | Styling | Tailwind CSS 4, Geist Sans/Mono, custom warm-neutral design tokens |
 | Database | MongoDB Atlas (metadata, reports, actions, share hashes) |
 | File storage | MongoDB GridFS bucket `meeting_files` for recordings and audio recaps |
-| Transcription | Deepgram `nova-3` with diarization, or OpenAI-compatible Whisper |
+| Transcription | Open-source Whisper through an OpenAI-compatible endpoint (ScribeCrate / faster-whisper, whisper.cpp, vLLM) |
 | Analysis | Gemma served through an OpenAI-compatible `/chat/completions` endpoint |
 | Audio recap | ElevenLabs text-to-speech |
 | Auth | Signed, HTTP-only browser ownership cookie for the MVP |
@@ -91,7 +92,7 @@ flowchart LR
         Grid[(GridFS: meeting_files)]
     end
 
-    DG[Deepgram / Whisper]
+    DG[Self-hosted Whisper]
     Gemma[Gemma endpoint]
     EL[ElevenLabs]
 
@@ -162,7 +163,7 @@ Processing is started with Next.js `after()` so the HTTP request returns quickly
 
 - Node.js 20 or newer (Node 22 is used on Render)
 - A MongoDB Atlas cluster (or another MongoDB deployment)
-- A Deepgram API key (default), or an OpenAI-compatible Whisper endpoint
+- A self-hosted open-source Whisper endpoint with an OpenAI-compatible `/audio/transcriptions` API
 - A Gemma endpoint exposing an OpenAI-compatible chat completions API
 - An ElevenLabs API key and voice ID (only needed for audio recaps)
 
@@ -204,26 +205,36 @@ Indexes are created lazily on first database use. The GridFS bucket is named `me
 
 ### Transcription
 
-**Deepgram (recommended):**
+MeetBrief does not call a proprietary speech API. It sends the recording to an OpenAI-compatible `/audio/transcriptions` endpoint, which you can run with open-source software:
 
-```dotenv
-TRANSCRIPTION_PROVIDER=deepgram
-DEEPGRAM_API_KEY=...
-DEEPGRAM_MODEL=nova-3
+- **ScribeCrate** (`hwdsl2/whisper-server`) — `faster-whisper` with optional speaker diarization.
+- **faster-whisper-server** / **Speaches** — lightweight OpenAI-compatible servers.
+- **whisper.cpp** — CPU-friendly C++ implementation with an OpenAI-compatible server.
+- **vLLM** — serves Whisper models through an OpenAI-compatible audio endpoint.
+
+Recommended local setup with ScribeCrate:
+
+```bash
+docker run -d --name whisper \
+  -p 9000:9000 \
+  -e WHISPER_MODEL=large-v3-turbo \
+  -e WHISPER_DIARIZATION=true \
+  -v whisper-data:/var/lib/whisper \
+  hwdsl2/whisper-server
 ```
 
-Deepgram returns timestamps and diarized speaker labels. Distinct speakers are shown as `Person 1`, `Person 2`, etc. Gemma may suggest a real name when a speaker explicitly introduces themselves, but the anonymous label stays until the user confirms the rename in the report.
-
-**Whisper-compatible endpoint:**
-
 ```dotenv
-TRANSCRIPTION_PROVIDER=whisper
-TRANSCRIPTION_API_URL=https://api.openai.com/v1
-TRANSCRIPTION_API_KEY=...
+TRANSCRIPTION_API_URL=http://localhost:9000/v1
+TRANSCRIPTION_API_KEY=
 TRANSCRIPTION_MODEL=whisper-1
+TRANSCRIPTION_TIMEOUT_MS=600000
 ```
 
-The Whisper adapter is for OpenAI-compatible `/audio/transcriptions` APIs. It does not provide diarization by default.
+`TRANSCRIPTION_MODEL=whisper-1` is the compatibility name; ScribeCrate always uses the model selected by `WHISPER_MODEL`. Set `TRANSCRIPTION_API_KEY` only when the server requires Bearer auth (ScribeCrate prints its generated key with `docker exec whisper whisper_manage --getkey`).
+
+When `WHISPER_DIARIZATION=true`, ScribeCrate adds a `speaker` field to each verbose JSON segment. MeetBrief maps those labels to `Person 1`, `Person 2`, etc. in first-seen order. Without diarization, every segment is labeled `Person 1` and the transcript metadata reports `diarized: false`; the app never invents speakers.
+
+Gemma may suggest a real name when a speaker explicitly introduces themselves, but the anonymous label stays until the user confirms the rename in the report.
 
 ### Gemma
 
@@ -265,12 +276,10 @@ Find a voice ID in the ElevenLabs workspace. Recap audio is generated on demand,
 | `MONGODB_DB_NAME` | No | Database name (default `meetbrief`) |
 | `SESSION_SECRET` | Yes in production | HMAC key for the ownership cookie; 32+ random characters |
 | `NEXT_PUBLIC_APP_URL` | Recommended | Public origin used to build share links, no trailing slash |
-| `TRANSCRIPTION_PROVIDER` | No | `deepgram` (default) or `whisper` |
-| `DEEPGRAM_API_KEY` | Deepgram | Deepgram API key |
-| `DEEPGRAM_MODEL` | No | Default `nova-3` |
-| `TRANSCRIPTION_API_URL` | Whisper | OpenAI-compatible base URL |
-| `TRANSCRIPTION_API_KEY` | Whisper | Whisper/OpenAI-compatible key |
-| `TRANSCRIPTION_MODEL` | No | Default `whisper-1` |
+| `TRANSCRIPTION_API_URL` | Yes for processing | Base URL of an OpenAI-compatible Whisper server (for example `http://localhost:9000/v1`) |
+| `TRANSCRIPTION_API_KEY` | Depends | Bearer token if the Whisper server requires auth |
+| `TRANSCRIPTION_MODEL` | No | Compatibility model name; default `whisper-1` |
+| `TRANSCRIPTION_TIMEOUT_MS` | No | 30s–30min; default 600s |
 | `GEMMA_API_URL` | Yes for processing | OpenAI-compatible Gemma endpoint |
 | `GEMMA_API_KEY` | Depends | Bearer token if the endpoint requires one |
 | `GEMMA_MODEL` | No | Default `gemma3:27b` |
@@ -321,6 +330,10 @@ There is no automatic retention scheduler in this MVP. For a production deployme
 
 ## Deploy to Render
 
+> **Step-by-step walkthrough:** [DEPLOYMENT.md](DEPLOYMENT.md) covers Atlas, the
+> open-source Whisper service, Gemma hosting, ElevenLabs, Render, and
+> troubleshooting in detail.
+
 The repository includes `render.yaml`.
 
 1. Push the repository to GitHub/GitLab.
@@ -328,7 +341,8 @@ The repository includes `render.yaml`.
 3. Set the environment variables marked `sync: false`:
    - `MONGODB_URI`
    - `NEXT_PUBLIC_APP_URL` (your Render URL, e.g. `https://meetbrief-ai.onrender.com`)
-   - `DEEPGRAM_API_KEY`
+   - `TRANSCRIPTION_API_URL` (public HTTPS URL of your Whisper server)
+   - `TRANSCRIPTION_API_KEY` (if your Whisper server requires auth)
    - `GEMMA_API_URL`, `GEMMA_API_KEY`
    - `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
 4. `SESSION_SECRET` is generated by the blueprint. Keep it stable; changing it invalidates existing browser sessions.
@@ -385,7 +399,7 @@ UI QA has been performed at desktop and narrow widths for the landing page, dash
 
 ### Integration status
 
-The app was built and unit-tested locally **without live provider credentials**. The real MongoDB/Deepgram/Gemma/ElevenLabs end-to-end flow has not been executed in this workspace and should be verified with your credentials before claiming production readiness. Missing configuration is surfaced in `/setup`, `/api/health`, and processing responses rather than simulated.
+The app was built and unit-tested locally **without live provider credentials**. The real MongoDB/Whisper/Gemma/ElevenLabs end-to-end flow has not been executed in this workspace and should be verified with your credentials before claiming production readiness. Missing configuration is surfaced in `/setup`, `/api/health`, and processing responses rather than simulated.
 
 ## Troubleshooting
 
@@ -394,7 +408,7 @@ The app was built and unit-tested locally **without live provider credentials**.
 | Dashboard says MongoDB is not configured | `MONGODB_URI` missing | Add it to `.env.local` and restart |
 | `/api/health` returns 503 | DB unreachable or unset | Check Atlas URI, user, network access, and cluster status |
 | Processing returns 503 | Transcription or Gemma unconfigured | Complete `/setup`; verify keys |
-| Processing fails at transcription | Bad key, unsupported audio, provider timeout/limit | Check server logs; try a short MP3/WAV; verify provider quota |
+| Processing fails at transcription | Whisper server down, wrong URL, unsupported audio, or timeout | Check server logs; try a short MP3/WAV; verify `TRANSCRIPTION_API_URL` and `TRANSCRIPTION_TIMEOUT_MS` |
 | Gemma returns invalid JSON | Model too small or prompt truncated | Use a capable Gemma model; increase `GEMMA_TIMEOUT_MS`; check endpoint logs |
 | Report has validation warnings | Model cited missing evidence or unsupported owners/dates | Review the transcript and edit the report; this is expected safety behavior |
 | Recap fails but script is present | ElevenLabs key/voice/quota issue | Fix credentials and retry; the script remains saved |
@@ -411,7 +425,7 @@ The app was built and unit-tested locally **without live provider credentials**.
 - No automatic data-retention job.
 - Browser recording is foreground-oriented and not guaranteed on mobile.
 - Processing runs in-process via `after()`, not in a durable queue.
-- Whisper fallback does not diarize by default.
+- Whisper servers without diarization label every segment `Person 1`; enable server-side diarization for multi-speaker reports.
 - Real provider integration is credential-dependent and unverified in this workspace.
 - `/demo` is intentionally fictional; it is not evidence of a live AI run.
 - `npm audit --omit=dev` currently reports advisories in Next.js's bundled PostCSS and in `sharp` (used only for local icon generation). The suggested fixes require major-version upgrades (Next 16 / Sharp 0.35); plan and re-test those upgrades separately rather than applying `--force` blindly.
@@ -436,7 +450,7 @@ lib/
   meetings/                Processing + repository
   mongodb/                 Client, indexes, collections
   storage/                 GridFS helpers
-  transcription/           Deepgram + Whisper adapters
+  transcription/           Open-source Whisper adapter (OpenAI-compatible)
   validation/              Zod schemas
 public/
   sw.js, icons/, offline assets

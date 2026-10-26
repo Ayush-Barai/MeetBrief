@@ -18,14 +18,14 @@ export const config = {
   ) * 1024 * 1024,
   mongoUri: env("MONGODB_URI"),
   mongoDbName: env("MONGODB_DB_NAME") ?? "meetbrief",
-  transcriptionProvider:
-    env("TRANSCRIPTION_PROVIDER")?.toLowerCase() ?? "deepgram",
-  deepgramKey: env("DEEPGRAM_API_KEY") ?? env("TRANSCRIPTION_API_KEY"),
-  deepgramModel: env("DEEPGRAM_MODEL") ?? "nova-3",
-  transcriptionApiUrl:
-    env("TRANSCRIPTION_API_URL") ?? "https://api.openai.com/v1",
-  transcriptionApiKey: env("TRANSCRIPTION_API_KEY") ?? env("DEEPGRAM_API_KEY"),
+  transcriptionApiUrl: env("TRANSCRIPTION_API_URL"),
+  transcriptionApiKey: env("TRANSCRIPTION_API_KEY"),
   transcriptionModel: env("TRANSCRIPTION_MODEL") ?? "whisper-1",
+  transcriptionTimeoutMs: (() => {
+    const raw = Number(env("TRANSCRIPTION_TIMEOUT_MS") ?? 600_000);
+    if (!Number.isFinite(raw)) return 600_000;
+    return Math.min(Math.max(raw, 30_000), 1_800_000);
+  })(),
   gemmaUrl: env("GEMMA_API_URL"),
   gemmaKey: env("GEMMA_API_KEY"),
   gemmaModel: env("GEMMA_MODEL") ?? "gemma3:27b",
@@ -39,11 +39,7 @@ export const config = {
 } as const;
 
 export function getIntegrationStatus(): IntegrationStatus {
-  const transcriptionConfigured =
-    config.transcriptionProvider === "deepgram"
-      ? bool(config.deepgramKey)
-      : bool(config.transcriptionApiKey) &&
-        bool(config.transcriptionApiUrl);
+  const transcriptionConfigured = bool(config.transcriptionApiUrl);
 
   return {
     database: {
@@ -54,14 +50,9 @@ export function getIntegrationStatus(): IntegrationStatus {
     },
     transcription: {
       configured: transcriptionConfigured,
-      detail:
-        config.transcriptionProvider === "deepgram"
-          ? transcriptionConfigured
-            ? `Deepgram ${config.deepgramModel} with speaker diarization.`
-            : "Set DEEPGRAM_API_KEY (or TRANSCRIPTION_API_KEY)."
-          : transcriptionConfigured
-            ? `Whisper-compatible endpoint (${config.transcriptionModel}).`
-            : "Set TRANSCRIPTION_API_KEY and TRANSCRIPTION_API_URL.",
+      detail: transcriptionConfigured
+        ? `Open-source Whisper endpoint (${config.transcriptionModel})${config.transcriptionApiKey ? " with Bearer auth" : ""}.`
+        : "Set TRANSCRIPTION_API_URL to a self-hosted OpenAI-compatible Whisper server.",
     },
     gemma: {
       configured: bool(config.gemmaUrl),

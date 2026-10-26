@@ -15,6 +15,9 @@ interface WhisperSegment {
   text?: string;
   avg_logprob?: number;
   no_speech_prob?: number;
+  /** ScribeCrate / faster-whisper-server diarization label, e.g. SPEAKER_00. */
+  speaker?: string | number | null;
+  speaker_label?: string | number | null;
 }
 
 interface WhisperResponse {
@@ -25,22 +28,34 @@ interface WhisperResponse {
 }
 
 function transcriptionUrl(): string {
-  const base = config.transcriptionApiUrl.replace(/\/+$/, "");
+  const base = config.transcriptionApiUrl?.replace(/\/+$/, "");
+  if (!base) {
+    throw new IntegrationError(
+      "The transcription endpoint is not configured. Set TRANSCRIPTION_API_URL to an OpenAI-compatible Whisper server.",
+      { code: "TRANSCRIPTION_NOT_CONFIGURED", status: 503 },
+    );
+  }
   if (base.endsWith("/audio/transcriptions")) return base;
   return `${base}/audio/transcriptions`;
+}
+
+function speakerToken(segment: WhisperSegment): string | null {
+  const primary = segment.speaker;
+  const value =
+    primary !== undefined &&
+    primary !== null &&
+    String(primary).trim().length > 0
+      ? primary
+      : segment.speaker_label;
+  if (value === undefined || value === null) return null;
+  const token = String(value).trim();
+  return token.length > 0 ? token : null;
 }
 
 export function createWhisperAdapter(): TranscriptionAdapter {
   return {
     name: "whisper",
     async transcribe(input: TranscriptionInput): Promise<TranscriptionResult> {
-      if (!config.transcriptionApiKey) {
-        throw new IntegrationError(
-          "The transcription endpoint is not configured. Set TRANSCRIPTION_API_KEY.",
-          { code: "TRANSCRIPTION_NOT_CONFIGURED", status: 503 },
-        );
-      }
-
       const form = new FormData();
       const blob = new Blob([new Uint8Array(input.buffer)], {
         type: input.mimeType || "audio/wav",
@@ -55,13 +70,15 @@ export function createWhisperAdapter(): TranscriptionAdapter {
       try {
         response = await fetch(transcriptionUrl(), {
           method: "POST",
-          headers: { Authorization: `Bearer ${config.transcriptionApiKey}` },
+          headers: config.transcriptionApiKey
+            ? { Authorization: `Bearer ${config.transcriptionApiKey}` }
+            : undefined,
           body: form,
-          signal: AbortSignal.timeout(240_000),
+          signal: AbortSignal.timeout(config.transcriptionTimeoutMs),
         });
       } catch {
         throw new IntegrationError(
-          "Could not reach the transcription endpoint. Check the network and try again.",
+          "Could not reach the transcription endpoint. Check TRANSCRIPTION_API_URL and that the Whisper server is running.",
           { code: "TRANSCRIPTION_UNREACHABLE" },
         );
       }
@@ -93,11 +110,27 @@ export function createWhisperAdapter(): TranscriptionAdapter {
             ]
           : [];
 
+      // Whisper servers that support diarization (for example ScribeCrate with
+      // WHISPER_DIARIZATION=true) add a speaker label to each segment. Map the
+      // provider's labels to stable Person N labels in first-seen order.
+      const speakerIndex = new Map<string, number>();
+      let sawSpeakerField = false;
+
       const segments = rawSegments
         .filter((segment) => (segment.text ?? "").trim().length > 0)
         .map((segment) => {
           const start = Math.max(0, segment.start ?? 0);
           const end = Math.max(start, segment.end ?? start);
+          const token = speakerToken(segment);
+          let speakerNumber = 1;
+          if (token) {
+            sawSpeakerField = true;
+            if (!speakerIndex.has(token)) {
+              speakerIndex.set(token, speakerIndex.size + 1);
+            }
+            speakerNumber = speakerIndex.get(token) ?? 1;
+          }
+
           // Whisper log probabilities are not calibrated confidence scores.
           // Expose a conservative heuristic only when both signals exist.
           const confidence =
@@ -107,8 +140,8 @@ export function createWhisperAdapter(): TranscriptionAdapter {
           return {
             startSeconds: Number(start.toFixed(3)),
             endSeconds: Number(end.toFixed(3)),
-            speakerId: "speaker-1",
-            speakerLabel: "Person 1",
+            speakerId: `speaker-${speakerNumber}`,
+            speakerLabel: `Person ${speakerNumber}`,
             text: (segment.text ?? "").trim(),
             confidence:
               confidence === null ? null : Number(confidence.toFixed(3)),
@@ -127,7 +160,7 @@ export function createWhisperAdapter(): TranscriptionAdapter {
         provider: "whisper",
         model: config.transcriptionModel,
         language: body?.language ?? input.language,
-        diarized: false,
+        diarized: sawSpeakerField && speakerIndex.size > 1,
       };
     },
   };

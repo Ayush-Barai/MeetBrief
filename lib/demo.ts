@@ -16,8 +16,8 @@ export const DEMO_MEETING: MeetingDetail = {
     sizeBytes: 18_400_000,
   },
   transcriptMeta: {
-    provider: "deepgram (demo)",
-    model: "nova-3",
+    provider: "whisper (demo)",
+    model: "large-v3-turbo",
     language: "en",
     generatedAt: "2026-09-18T15:02:00.000Z",
     diarized: true,
